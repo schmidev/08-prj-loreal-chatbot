@@ -16,25 +16,38 @@ export default {
 
     const apiKey = env.OPENAI_API_KEY; // Make sure to name your secret OPENAI_API_KEY in the Cloudflare Workers dashboard
     const apiUrl = 'https://api.openai.com/v1/chat/completions';
-    const userInput = await request.json();
-
+    let userInput;
+    try {
+      userInput = await request.json();
+    } catch (err) {
+      return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: corsHeaders });
+    }
     const requestBody = {
       model: 'gpt-4o',
       messages: userInput.messages,
-      max_completion_tokens: 300,
+      max_tokens: 300,
     };
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-    const data = await response.json();
+      // If OpenAI returns an error, forward it
+      if (!response.ok) {
+        const errorData = await response.json();
+        return new Response(JSON.stringify({ error: errorData }), { status: response.status, headers: corsHeaders });
+      }
 
-    return new Response(JSON.stringify(data), { headers: corsHeaders });
+      const data = await response.json();
+      return new Response(JSON.stringify(data), { headers: corsHeaders });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: "Failed to fetch from OpenAI", details: error.message }), { status: 500, headers: corsHeaders });
+    }
   }
 };
